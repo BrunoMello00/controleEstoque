@@ -1,0 +1,10 @@
+CREATE TABLE Statistics (
+    id INT AUTO_INCREMENT,
+    topSellingShirt VARCHAR(255),
+    topSellingSize VARCHAR(255),
+    totalExchanges INT,
+    mostExchangedShirts VARCHAR(255),
+    mostUsedPaymentMethod VARCHAR(255),
+    totalProfit DECIMAL(10, 2),
+    PRIMARY KEY (id)
+); 

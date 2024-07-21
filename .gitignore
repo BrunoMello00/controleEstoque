@@ -1,0 +1,16 @@
+node_modules/
+
+**/target
+**/.classpath
+.classpath
+.factorypath
+.project
+.settings
+.vscode
+.apt_generated
+.tern-project
+.svn
+/reset-arquivos-locais.bat
+/.apt_generated_tests/
+.idea
+.env

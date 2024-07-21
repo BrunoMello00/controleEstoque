@@ -1,0 +1,3 @@
+Verde=65
+Lilas=80
+Preto=120

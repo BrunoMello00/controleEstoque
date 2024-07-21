@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.2/FileSaver.min.js"></script>
+    <title>Venda de Camisas</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    
+    <script>
+        var transactions = [];
+        var totalProfit = 0;
+        var shirtPrices = {};
+        
+
+        function displayShirtSizes() {
+            var shirtSizesDiv = document.getElementById('shirtSizes');
+            shirtSizesDiv.innerHTML = '';
+        
+            var colors = ['Verde', 'Lilas', 'Preto'];
+            var sizes = ['PP', 'P', 'M', 'G', 'GG'];
+        
+            var table = '<table class="table table-striped">';
+            table += '<thead><tr><th></th>';
+        
+            for (var color of colors) {
+                table += '<th>' + color + '</th>';
+            }
+        
+            table += '</tr></thead><tbody>';
+        
+            for (var size of sizes) {
+                table += '<tr><th>' + size + '</th>';
+                for (var color of colors) {
+                    var id = color + ' ' + size;
+                    table += '<td>' + shirtSizes[id] + '</td>';
+                }
+                table += '</tr>';
+            }
+        
+            table += '</tbody></table>';
+        
+            shirtSizesDiv.innerHTML = table;
+        }
+
+        function updateShirtSizesOnServer(id, count) {
+            fetch('http://localhost:3000/shirtSizes/' + id, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ count: count }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Sucesso:', data);
+            })
+            .catch((error) => {
+                console.error('Erro:', error);
+            });
+        }
+      
+        function decreaseCount(id, paymentMethod) {
+            if (shirtSizes[id] > 0) {
+                shirtSizes[id]--; 
+                var color = id.split(' ')[0];
+                totalProfit += shirtPrices[color]; 
+                transactions.push("Venda: " + id + ", " + paymentMethod);
+                
+                updateShirtSizesOnServer(id, shirtSizes[id]);
+            } else {
+                console.error('Erro: Não há mais camisas do modelo ' + id);
+            }
+        }
+        
+        function increaseCountForReturn(id) {
+            shirtSizes[id]++; 
+            var color = id.split(' ')[0];
+            totalProfit -= shirtPrices[color];
+            transactions.push("Devolução: " + id);
+            updateShirtSizesOnServer(id, shirtSizes[id]); 
+        }
+        
+        function decreaseCountForExchange(id, exchangeModel, exchangeSize) {
+            if (shirtSizes[id] > 0 && shirtSizes[exchangeModel + " " + exchangeSize] > 0) {
+                shirtSizes[id]--; 
+                shirtSizes[exchangeModel + " " + exchangeSize]--; 
+                var color = id.split(' ')[0];
+                var exchangeColor = exchangeModel.split(' ')[0];
+                totalProfit -= shirtPrices[exchangeColor]; 
+                transactions.push("Troca: " + id + " por " + exchangeModel);
+        
+                updateShirtSizesOnServer(id, shirtSizes[id]); 
+                updateShirtSizesOnServer(exchangeModel + " " + exchangeSize, shirtSizes[exchangeModel + " " + exchangeSize]); 
+            } else {
+                console.error('Erro: Não há mais camisas do modelo ' + id + ' ou ' + exchangeModel + " " + exchangeSize);
+            }
+        }
+        
+        function increaseCountForExchange(id, exchangeModel, exchangeSize) {
+            shirtSizes[id]++; 
+            shirtSizes[exchangeModel + " " + exchangeSize]++; 
+            var color = id.split(' ')[0];
+            var exchangeColor = exchangeModel.split(' ')[0];
+            totalProfit += shirtPrices[exchangeColor]; 
+        
+            updateShirtSizesOnServer(id, shirtSizes[id]); 
+            updateShirtSizesOnServer(exchangeModel + " " + exchangeSize, shirtSizes[exchangeModel + " " + exchangeSize]); 
+        }
+
+        function saveTransactions() {
+            var blob = new Blob([transactions.join("\n")], {type: "text/plain;charset=utf-8"});
+            saveAs(blob, "transactions.txt");
+        }
+
+        function formatShirtSizes() {
+            var formattedSizes = [];
+            for (var id in shirtSizes) {
+                formattedSizes.push(id + '=' + shirtSizes[id]);
+            }  
+            return formattedSizes.join('\n');
+        }
+
+        function updateServerAndDisplay(id) {
+            updateShirtSizesOnServer(id, shirtSizes[id]);
+            displayShirtSizes();
+        }
+
+        function performAction(id, action, paymentMethod, exchangeModel, exchangeSize) {
+            switch (action) {
+                case 'venda':
+                    decreaseCount(id, paymentMethod);
+                    updateServerAndDisplay(id);
+                    break;
+                case 'devolução':
+                    increaseCountForReturn(id);
+                    updateServerAndDisplay(id);
+                    break;
+                case 'troca':
+                    var exchangeId = exchangeModel;
+                    decreaseCountForExchange(id, exchangeId, exchangeSize); 
+                    increaseCountForExchange(exchangeId, id, exchangeSize); 
+                    updateServerAndDisplay(id);
+                    updateServerAndDisplay(exchangeId);
+                    break;
+            }
+        }
+
+        function getStatistics() {
+            var topSellingShirt = {};
+            var topSellingSize = {};
+            var totalExchanges = 0;
+            var mostExchangedShirts = {};
+            var mostUsedPaymentMethod = {};
+        
+            for (var transaction of transactions) {
+                var type = transaction.split(':')[0].trim();
+                var details = transaction.split(':')[1].trim();
+                var model = details.split(',')[0].trim();
+                var size = model.split(' ')[1];
+                var color = model.split(' ')[0];
+        
+                if (type === 'Venda') {
+                    var paymentMethod = details.split(',')[1];
+                    if (paymentMethod) {
+                        mostUsedPaymentMethod[paymentMethod] = (mostUsedPaymentMethod[paymentMethod] || 0) + 1;
+                    }
+                                  
+                    topSellingShirt[color] = (topSellingShirt[color] || 0) + 1;
+                    topSellingSize[size] = (topSellingSize[size] || 0) + 1;
+                } else if (type === 'Troca') {
+                    totalExchanges++;
+                    mostExchangedShirts[model] = (mostExchangedShirts[model] || 0) + 1;
+                }
+            }
+        
+            return {
+                'Camisa Mais Vendida': topSellingShirt,
+                'Tamanho Mais Vendido': topSellingSize,
+                'Total de Trocas': totalExchanges,
+                'Camisas Mais Trocadas': mostExchangedShirts,
+                'Método de Pagamento Mais Utilizado': mostUsedPaymentMethod,
+                'Lucro Total': totalProfit
+            };
+        }
+
+        function displayStatistics() {
+            var statistics = getStatistics();
+            statistics['Quantidades de Camisas'] = formatShirtSizes();
+            var statisticsDiv = document.getElementById('statistics');
+            statisticsDiv.innerHTML = JSON.stringify(statistics, null, 2);
+        }
+
+        function saveStatistics() {
+            var statistics = getStatistics();
+            fetch('http://localhost:3000/statistics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(statistics),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Sucesso:', data);
+            })
+            .catch((error) => {
+                console.error('Erro:', error);
+            });
+        }
+
+        function getUpdatedShirtTable() {
+            var shirtSizesText = '';
+            for (var id in shirtSizes) {
+                if (shirtSizes.hasOwnProperty(id)) {
+                    shirtSizesText += id + '=' + shirtSizes[id] + '\n';
+                }
+            }
+            return shirtSizesText.trim();
+        }
+
+        window.onload = function() {
+            displayShirtSizes();
+            fetch('http://localhost:3000/shirtSizes')
+                .then(response => response.json())
+                .then(data => {
+                    for (var item of data) {
+                        var id = item.id;
+                        var count = item.count;
+                        shirtSizes[id] = count;
+                    }
+                    displayShirtSizes();
+                })
+                .catch(error => console.error('Erro ao buscar os tamanhos das camisas:', error));
+        
+            fetch('http://localhost:3000/shirtPrices')
+                .then(response => response.json())
+                .then(data => {
+                    for (var item of data) {
+                        var color = item.color;
+                        var price = item.price;
+                        shirtPrices[color] = price;
+                    }
+                })
+                .catch(error => console.error('Erro ao buscar os preços das camisas:', error));
+        };
+    </script>
+</head>
+<body class="container">
+    <div id="shirtSizes" class="my-3"></div>
+    <div class="clear"></div>
+    <div id="troca" class="my-3">
+        <h2>Compra</h2>
+        <div class="form-group">
+            <select id="compraModel" class="form-control"> 
+                <option value="Verde PP">Verde PP</option>
+                <option value="Verde P">Verde P</option>
+                <option value="Verde M">Verde M</option>
+                <option value="Verde G">Verde G</option>
+                <option value="Verde GG">Verde GG</option>
+
+                <option value="Lilas PP">Lilas PP</option>
+                <option value="Lilas P">Lilas P</option>
+                <option value="Lilas M">Lilas M</option>
+                <option value="Lilas G">Lilas G</option>
+                <option value="Lilas GG">Lilas GG</option>
+
+                <option value="Preto PP">Preto PP</option>
+                <option value="Preto P">Preto P</option>
+                <option value="Preto M">Preto M</option>
+                <option value="Preto G">Preto G</option>
+                <option value="Preto GG">Preto GG</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <select id="paymentMethod" class="form-control">
+                <option value="pix">PIX</option>
+                <option value="cartao credito">Cartão</option>
+                <option value="cartao debito">Cartão</option>
+                <option value="dinheiro">Dinheiro</option>
+            </select>
+            <button onclick="performAction(document.getElementById('compraModel').value, 'venda', document.getElementById('paymentMethod').value)" class="btn btn-primary mt-2">Comprar</button>
+        </div>
+        <div id="devolução" class="my-3">
+            <h2>Devolução</h2>
+            <div class="form-group">
+                <select id="devoluçãoModel" class="form-control">
+                    <option value="Verde PP">Verde PP</option>
+                    <option value="Verde P">Verde P</option>
+                    <option value="Verde M">Verde M</option>
+                    <option value="Verde G">Verde G</option>
+                    <option value="Verde GG">Verde GG</option>
+
+                    <option value="Lilas PP">Lilas PP</option>
+                    <option value="Lilas P">Lilas P</option>
+                    <option value="Lilas M">Lilas M</option>
+                    <option value="Lilas G">Lilas G</option>
+                    <option value="Lilas GG">Lilas GG</option>
+
+                    <option value="Preto PP">Preto PP</option>
+                    <option value="Preto P">Preto P</option>
+                    <option value="Preto M">Preto M</option>
+                    <option value="Preto G">Preto G</option>
+                    <option value="Preto GG">Preto GG</option>
+                </select>
+            </div>
+        <button onclick="performAction(document.getElementById('devoluçãoModel').value, 'devolução')">Devolver</button>
+    </div>
+    <div id="troca" class="my-3">
+        <h2>Troca</h2>
+        <p>Estou devolvendo a</p>
+        <div class="form-group">
+            <select id="trocaModelNovo" class="form-control"> 
+                <option value="Verde PP">Verde PP</option>
+                <option value="Verde P">Verde P</option>
+                <option value="Verde M">Verde M</option>
+                <option value="Verde G">Verde G</option>
+                <option value="Verde GG">Verde GG</option>
+
+                <option value="Lilas PP">Lilas PP</option>
+                <option value="Lilas P">Lilas P</option>
+                <option value="Lilas M">Lilas M</option>
+                <option value="Lilas G">Lilas G</option>
+                <option value="Lilas GG">Lilas GG</option>
+
+                <option value="Preto PP">Preto PP</option>
+                <option value="Preto P">Preto P</option>
+                <option value="Preto M">Preto M</option>
+                <option value="Preto G">Preto G</option>
+                <option value="Preto GG">Preto GG</option>
+            </select>
+        </div>
+        <p>Estou pegando a</p>
+        <div class="form-group">
+            <select id="trocaModel" class="form-control"> 
+                <option value="Verde PP">Verde PP</option>
+                <option value="Verde P">Verde P</option>
+                <option value="Verde M">Verde M</option>
+                <option value="Verde G">Verde G</option>
+                <option value="Verde GG">Verde GG</option>
+
+                <option value="Lilas PP">Lilas PP</option>
+                <option value="Lilas P">Lilas P</option>
+                <option value="Lilas M">Lilas M</option>
+                <option value="Lilas G">Lilas G</option>
+                <option value="Lilas GG">Lilas GG</option>
+
+                <option value="Preto PP">Preto PP</option>
+                <option value="Preto P">Preto P</option>
+                <option value="Preto M">Preto M</option>
+                <option value="Preto G">Preto G</option>
+                <option value="Preto GG">Preto GG</option>
+            </select>
+        </div>
+        <button onclick="performAction(document.getElementById('trocaModel').value, 'troca', '', document.getElementById('trocaModelNovo').value)">Trocar</button>
+    </div>
+    <button onclick="saveTransactions()" class="btn btn-success my-3">Salvar transações</button>
+    <button onclick="saveStatistics()" class="btn btn-success my-3">Salvar Estatísticas</button>
+</body>
+</html>

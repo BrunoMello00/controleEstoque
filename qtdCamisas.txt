@@ -1,0 +1,15 @@
+Verde PP=10
+Verde P=50
+Verde M=30
+Verde G=40
+Verde GG=50
+Lilas PP=10
+Lilas P=20
+Lilas M=30
+Lilas G=40
+Lilas GG=50
+Preto PP=10
+Preto P=20
+Preto M=30
+Preto G=40
+Preto GG=50
